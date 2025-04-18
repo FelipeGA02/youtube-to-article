@@ -28,17 +28,14 @@ youtube-to-article/
 │       ├── img1.png
 │       └── img2.png
 │
-├── 📁 audio/                     # Áudios extraídos dos vídeos
+├── 📁 audios/                     # Áudios extraídos dos vídeos
 │   └── video_001.mp3
+│
+├── 📁 transcricoes/                    # transcrições baixados
+│   └── texto_001.txt
 │
 ├── 📁 videos/                    # Vídeos baixados
 │   └── video_001.mp4
-│
-├── 📁 logs/                      # Logs da execução e erros
-│   └── execution.log
-│
-├── 📁 configs/                   # Arquivos de configuração (API keys, etc)
-│   └── config.yaml
 │
 ├── requirements.txt             # Dependências do projeto
 ├── .env                         # Variáveis de ambiente (API keys, tokens)

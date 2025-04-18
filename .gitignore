@@ -1,4 +1,6 @@
 .env
 videos/
+audios/
+videos/
 package-lock.json
  
