@@ -13,20 +13,14 @@ youtube-to-article/
 │   │
 │   ├── 📁 generator/             # Geração de artigos e prompts
 │   │   ├── generate_article.py
-│   │   └── generate_images.py
 │   │
 │   ├── 📁 uploader/              # Scripts para postar na Hostinger (via FTP, API, CMS)
 │   │   └── upload_article.py
 │   │
 │   └── main.py                   # Orquestração do processo completo
 │
-├── 📁 articles/                  # Artigos gerados (HTML, Markdown ou outro formato)
+├── 📁 artigos/                  # Artigos gerados (HTML, Markdown ou outro formato)
 │   └── artigo_001.md
-│
-├── 📁 images/                    # Imagens geradas por IA
-│   └── artigo_001/
-│       ├── img1.png
-│       └── img2.png
 │
 ├── 📁 audios/                     # Áudios extraídos dos vídeos
 │   └── video_001.mp3

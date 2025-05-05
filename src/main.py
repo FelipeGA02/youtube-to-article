@@ -5,6 +5,7 @@ from downloader.extract_audio import extract_audio_from_video
 from downloader.get_trending_videos import search_youtube_video_links
 from generator import generate_article
 from transcriber.transcribe_audio import transcribe_all_audios
+from uploader.upload_article import publish_all_articles
 
 load_dotenv()
 
@@ -31,20 +32,5 @@ if __name__ == "__main__":
     #        extract_audio_from_video(video_path)
     
     #transcribe_all_audios()
-    
-    with open("transcriptions/transcricao.txt", "r", encoding="utf-8") as f:
-        transcription = f.read()
-
-    title = "Resumo do Vídeo"
-    article = generate_article(transcription, title)
-
-    # (opcional) adicionar imagens
-    image_urls = [
-        "https://example.com/image1.jpg",
-        "https://example.com/image2.jpg"
-    ]
-    article_with_images = generate_article.insert_images_into_article(article, image_urls)
-
-    md, html, pdf = generate_article.export_article(title, article_with_images)
-
-    print(f"Artigo salvo como:\n- Markdown: {md}\n- HTML: {html}\n- PDF: {pdf}")
+    generate_article.gerar_artigos()
+    publish_all_articles()

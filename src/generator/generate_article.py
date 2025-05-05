@@ -1,81 +1,117 @@
-from transformers import pipeline
-import markdown
-from weasyprint import HTML
-from diffusers import StableDiffusionPipeline
-import openai
 import os
+import re
 import requests
-from pathlib import Path
-from textwrap import wrap
+import google.generativeai as genai
+from dotenv import load_dotenv
 
-def generate_article(transcription_text: str, title: str = "Artigo Gerado") -> str:
-    summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
 
-    summary_chunks = summarizer(transcription_text, max_length=300, min_length=100, do_sample=False)
-    summary = " ".join([chunk['summary_text'] for chunk in summary_chunks])
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-    article = f"# {title}\n\n{summary}\n"
-    return article
+genai.configure(api_key=GEMINI_API_KEY)
 
-def insert_images_into_article(article: str, image_urls: list) -> str:
-    content = article + "\n\n## Imagens Relacionadas:\n"
-    for url in image_urls:
-        content += f"![Imagem relacionada]({url})\n\n"
-    return content
+model = genai.GenerativeModel("gemini-1.5-pro")
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Cria pastas se não existirem
+os.makedirs("artigos", exist_ok=True)
+ 
+# Função para gerar imagem usando a API gratuita do Unsplash
+def gerar_imagem_gratis_unsplash(query, index, nome_base):
+    url = f"https://api.unsplash.com/photos/random?query={query}&client_id={UNSPLASH_ACCESS_KEY}"
+    response = requests.get(url).json()
 
-# Função para gerar imagem a partir de um prompt
-def gerar_imagem(prompt, index):
-    response = openai.Image.create(
-        prompt=prompt,
-        n=1,
-        size="512x512"
-    )
-    image_url = response['data'][0]['url']
-    image_path = f"imagem_{index}.png"
+    # Em caso de erro
+    if "urls" not in response:
+        print(f"⚠️ Erro ao buscar imagem: {response}")
+        return ""
 
-    # Baixar imagem
+    image_url = response["urls"]["regular"]
+    img_path = f"artigos/{nome_base}_imagem_{index}.jpg"
     img_data = requests.get(image_url).content
-    with open(image_path, 'wb') as f:
-        f.write(img_data)
+    with open(img_path, "wb") as handler:
+        handler.write(img_data)
 
-    return image_path
+    return img_path
 
-# Função para gerar HTML com imagens e texto
-def gerar_html_com_imagens(texto_transcrito, output_path="artigo_gerado.html"):
-    partes = wrap(texto_transcrito, width=300)  # divide o texto em blocos
-    html = "<html><head><meta charset='UTF-8'><title>Artigo com Imagens</title></head><body>"
+def gerar_artigos():
+    for nome_arquivo in os.listdir("transcricoes"):
+        if nome_arquivo.endswith(".txt"):
+            caminho_txt = os.path.join("transcricoes", nome_arquivo)
+            nome_base = os.path.splitext(nome_arquivo)[0]
 
-    for i, parte in enumerate(partes):
-        html += f"<p>{parte}</p>"
-        imagem = gerar_imagem(parte, i)
-        html += f"<img src='{imagem}' alt='Imagem gerada para parte {i}' style='width: 300px;'><hr>"
+            with open(caminho_txt, "r", encoding="utf-8") as file:
+                texto_base = file.read()
 
-    html += "</body></html>"
+            # Prompt
+            prompt = f"""
+            
+            Com base no conteúdo abaixo, escreva um artigo em HTML em português, que inclua uma meta tag podendo ter o content de: filmes-e-series, jogos, curiosidades, musica, saude, tecnologia. Escolha o que fazer maior sentido para o conteúdo. Exemplo:
+            <head>
+                <meta name="category" content="tecnologia">
+                <title>Exemplo de Artigo</title>
+            </head>
+            Para gerar o artigo foque nos seguites tópicos:
+            
+            ### 1. **Conteúdo Original e Profundo**
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(html)
+            - Escreva **análises detalhadas** para cada item do ranking, explicando por que ele ocupa aquela posição.
+            - Inclua **fontes confiáveis** para embasar suas escolhas.
 
-    print(f"Artigo gerado com sucesso em {output_path}")
+            ### 2. **Formato Estruturado e Escaneável**
 
-def export_article(title: str, article_markdown: str, output_dir="output"):
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+            - Use **títulos e subtítulos claros (H2, H3, H4)** para facilitar a leitura.
+            - Adicione **listas numeradas ou com marcadores** para organização.
+            - Destaque **pontos-chave em negrito** para facilitar a leitura rápida.
 
-    # Salvar como Markdown
-    md_path = os.path.join(output_dir, f"{title}.md")
-    with open(md_path, "w", encoding="utf-8") as f:
-        f.write(article_markdown)
+            ### 3. **Mídia Visual de Qualidade**
 
-    # Converter e salvar como HTML
-    html_content = markdown.markdown(article_markdown)
-    html_path = os.path.join(output_dir, f"{title}.html")
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(html_content)
+            - Inclua **imagens originais** ou com licença de uso (Unsplash, Pexels, Freepik).
+            - Adicione **infográficos ou tabelas** para tornar os dados mais atraentes.
+            - Se possível, **incorpore vídeos** (próprios ou de fontes confiáveis).
 
-    # Converter HTML para PDF
-    pdf_path = os.path.join(output_dir, f"{title}.pdf")
-    HTML(string=html_content).write_pdf(pdf_path)
+            ### 4. **SEO e Experiência do Usuário**
 
-    return md_path, html_path, pdf_path
+            - Escreva **títulos chamativos e descritivos**.
+            - Utilize palavras-chave de forma natural.
+            - Crie **meta descrições** atrativas para cada artigo.
+            - Melhore o tempo de carregamento do site.
+
+            ### 5. **Engajamento e Autoridade**
+
+            - Adicione **links internos** para outros artigos relevantes do seu blog.
+            - Incentive comentários e interações.
+            - Atualize rankings periodicamente para manter a relevância.
+
+            ### 6. **Evite Conteúdo de Baixo Valor**
+
+            - Evite textos superficiais ou automáticos.
+            - Não crie artigos apenas para gerar cliques sem entregar valor real.
+            
+            Para cada seção, adicione um comentário HTML com uma descrição da imagem ideal para acompanhar essa parte, no formato:
+            <!-- imagem: descrição da imagem -->
+
+            Texto:
+            \"\"\"{texto_base}\"\"\"
+            """
+
+            print(f"📄 Gerando artigo para: {nome_arquivo}")
+            response = model.generate_content(prompt)
+            html_com_tags = response.text
+
+            # Busca por comentários de imagens
+            imagens = re.findall(r"<!-- imagem: (.*?) -->", html_com_tags)
+            html_final = html_com_tags
+
+            for i, descricao in enumerate(imagens):
+                img_path = gerar_imagem_gratis_unsplash(descricao, i, nome_base)
+                if img_path:
+                    img_tag = f'<img src="{os.path.basename(img_path)}" alt="{descricao}" style="max-width:100%; border-radius:10px; margin: 20px 0;">'
+                    html_final = html_final.replace(f"<!-- imagem: {descricao} -->", img_tag, 1)
+
+            # Salva HTML final
+            caminho_html = f"artigos/{nome_base}.html"
+            with open(caminho_html, "w", encoding="utf-8") as f:
+                f.write(html_final)
+
+            print(f"✅ Artigo gerado: {caminho_html}")
