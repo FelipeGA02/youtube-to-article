@@ -7,6 +7,7 @@ import unicodedata
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from typing import Optional
+import mimetypes
 
 # Setup de logging
 logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
@@ -52,7 +53,7 @@ def upload_image(image_path: str) -> str:
         print(f"Preparando o upload da imagem: {image_path}")
         with open(image_path, "rb") as img_file:
             response = requests.post(
-                f"{WORDPRESS_URL}/wp-json/wp/v2/media",  # Certifique-se da URL correta aqui!
+                f"{WORDPRESS_URL}/wp-json/wp/v2/media",
                 headers=headers,
                 files={"file": (filename, img_file, "image/jpeg")}
             )
@@ -141,10 +142,53 @@ def process_html_file(file_path: str) -> tuple[str, str, int]:
 
     return title, str(soup), category_id
 
+def get_featured_image_id(file_path: str) -> Optional[int]:
+    """Obtém o ID da primeira imagem local do HTML como imagem destacada."""
+    with open(file_path, "r", encoding="utf-8") as file:
+        soup = BeautifulSoup(file, "html.parser")
 
+    first_img_tag = soup.find("img")
+    if not first_img_tag:
+        logging.warning(f"Nenhuma imagem encontrada no HTML de '{file_path}'.")
+        return None
+
+    src = first_img_tag.get("src", "")
+    if not src or src.startswith("http"):
+        logging.warning(f"A primeira imagem não é local ou não tem src válido: '{src}'.")
+        return None
+
+    image_path = os.path.join(os.path.dirname(file_path), src)
+    if not os.path.exists(image_path):
+        logging.warning(f"Imagem local não encontrada: {image_path}")
+        return None
+
+    filename = sanitize_filename(os.path.basename(image_path))
+    mime_type, _ = mimetypes.guess_type(image_path)
+    headers = HEADERS_MEDIA.copy()
+    headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    with open(image_path, "rb") as img:
+        try:
+            response = requests.post(
+                f"{WORDPRESS_URL}/wp-json/wp/v2/media",
+                headers=headers,
+                files={"file": (filename, img, mime_type or "image/jpeg")}
+            )
+            response.raise_for_status()
+            image_id = response.json().get("id")
+            logging.info(f"Imagem destacada enviada com sucesso: {image_path} (ID: {image_id})")
+            return image_id
+        except Exception as e:
+            logging.error(f"Erro ao fazer upload da imagem destacada '{image_path}': {e}")
+
+    return None
+        
 def publish_article(file_path: str) -> None:
-    """Publica um único artigo no WordPress."""
+    """Publica um único artigo no WordPress com imagem destacada."""
     title, content, category_id = process_html_file(file_path)
+
+    # Suponha que esta função retorne o ID da imagem destacada ou None
+    featured_image_id = get_featured_image_id(file_path)
 
     payload = {
         "title": title,
@@ -154,6 +198,9 @@ def publish_article(file_path: str) -> None:
         "categories": [category_id],
     }
 
+    if featured_image_id:
+        payload["featured_media"] = featured_image_id
+
     try:
         response = requests.post(
             f"{WORDPRESS_URL}/wp-json/wp/v2/posts",
@@ -161,7 +208,6 @@ def publish_article(file_path: str) -> None:
             json=payload
         )
         logging.info(f"Publicado '{title}' → Status: {response.status_code}")
-        logging.debug(f"Resposta: {response.text}")
     except Exception as e:
         logging.error(f"Erro ao publicar artigo '{title}': {e}")
 

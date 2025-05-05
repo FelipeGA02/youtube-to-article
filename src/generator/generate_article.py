@@ -3,6 +3,7 @@ import re
 import requests
 import google.generativeai as genai
 from dotenv import load_dotenv
+import time
 
 UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
 
@@ -13,10 +14,21 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 model = genai.GenerativeModel("gemini-1.5-pro")
 
-# Cria pastas se não existirem
 os.makedirs("artigos", exist_ok=True)
  
-# Função para gerar imagem usando a API gratuita do Unsplash
+def gerar_query_visual(descricao, contexto):
+    prompt_query = f"""
+    Você é um especialista em busca de imagens para ilustrar artigos. Com base na descrição abaixo e no contexto geral do artigo, gere uma *query* em inglês, concisa e visualmente expressiva para ser usada na API do Unsplash.
+
+    Descrição: "{descricao}"
+    Contexto do artigo: \"\"\"{contexto}\"\"\"
+
+    A query deve ser específica e representar bem a imagem sugerida.
+    """
+    response = model.generate_content(prompt_query)
+    return response.text.strip().replace('"', '')
+
+
 def gerar_imagem_gratis_unsplash(query, index, nome_base):
     url = f"https://api.unsplash.com/photos/random?query={query}&client_id={UNSPLASH_ACCESS_KEY}"
     response = requests.get(url).json()
@@ -27,6 +39,7 @@ def gerar_imagem_gratis_unsplash(query, index, nome_base):
         return ""
 
     image_url = response["urls"]["regular"]
+    time.sleep(2)
     img_path = f"artigos/{nome_base}_imagem_{index}.jpg"
     img_data = requests.get(image_url).content
     with open(img_path, "wb") as handler:
@@ -46,57 +59,73 @@ def gerar_artigos():
             # Prompt
             prompt = f"""
             
-            Com base no conteúdo abaixo, escreva um artigo em HTML em português, que inclua uma meta tag podendo ter o content de: filmes-e-series, jogos, curiosidades, musica, saude, tecnologia. Escolha o que fazer maior sentido para o conteúdo. Exemplo:
-            <head>
-                <meta name="category" content="tecnologia">
-                <title>Exemplo de Artigo</title>
-            </head>
-            Para gerar o artigo foque nos seguites tópicos:
-            
-            ### 1. **Conteúdo Original e Profundo**
+            Imagine que você é um profissional especializado na criação de artigos para blogs e sites, com foco em SEO, experiência do usuário e autoridade no conteúdo. Com base no conteúdo abaixo, escreva um artigo em HTML em português, estruturado conforme as melhores práticas editoriais e de marketing de conteúdo.
 
-            - Escreva **análises detalhadas** para cada item do ranking, explicando por que ele ocupa aquela posição.
-            - Inclua **fontes confiáveis** para embasar suas escolhas.
+            Requisitos Gerais:
+            O artigo deve conter entre 1000 e 2000 palavras.
 
-            ### 2. **Formato Estruturado e Escaneável**
+            O texto deve ser original, profundo e informativo, agregando valor real ao leitor.
 
-            - Use **títulos e subtítulos claros (H2, H3, H4)** para facilitar a leitura.
-            - Adicione **listas numeradas ou com marcadores** para organização.
-            - Destaque **pontos-chave em negrito** para facilitar a leitura rápida.
+            Cabeçalho HTML:
+            Adicione a tag:
 
-            ### 3. **Mídia Visual de Qualidade**
+            <meta name="category" content="...">
+            Escolha o valor mais apropriado entre: filmes-e-series, jogos, curiosidades, musica, saude, tecnologia, com base no conteúdo.
 
-            - Inclua **imagens originais** ou com licença de uso (Unsplash, Pexels, Freepik).
-            - Adicione **infográficos ou tabelas** para tornar os dados mais atraentes.
-            - Se possível, **incorpore vídeos** (próprios ou de fontes confiáveis).
+            Inclua também:
 
-            ### 4. **SEO e Experiência do Usuário**
+            <meta name="description" content="Resumo atrativo do artigo com até 160 caracteres.">
+            <title>Título chamativo do artigo</title>
+            Estrutura do Artigo:
+            Use títulos e subtítulos claros com <h2>, <h3> e <h4>.
 
-            - Escreva **títulos chamativos e descritivos**.
-            - Utilize palavras-chave de forma natural.
-            - Crie **meta descrições** atrativas para cada artigo.
-            - Melhore o tempo de carregamento do site.
+            Organize o conteúdo em listas numeradas ou com marcadores quando necessário.
 
-            ### 5. **Engajamento e Autoridade**
+            Destaque pontos-chave em negrito para melhorar a leitura escaneável.
 
-            - Adicione **links internos** para outros artigos relevantes do seu blog.
-            - Incentive comentários e interações.
-            - Atualize rankings periodicamente para manter a relevância.
+            Adicione comentários HTML descrevendo as imagens ideais para cada seção, no formato:
 
-            ### 6. **Evite Conteúdo de Baixo Valor**
-
-            - Evite textos superficiais ou automáticos.
-            - Não crie artigos apenas para gerar cliques sem entregar valor real.
-            
-            Para cada seção, adicione um comentário HTML com uma descrição da imagem ideal para acompanhar essa parte, no formato:
             <!-- imagem: descrição da imagem -->
+            Conteúdo:
+            Escreva análises detalhadas sobre os itens ou temas discutidos.
 
-            Texto:
+            Explique por que cada ponto merece destaque, com base em critérios claros.
+
+            Sempre que possível, cite fontes confiáveis para embasar suas afirmações.
+
+            Elementos Visuais:
+            Sugira o uso de imagens livres de direitos autorais (como Unsplash, Freepik, Pexels).
+
+            Utilize infográficos, gráficos ou vídeos quando relevante (pode ser apenas a sugestão no comentário HTML).
+
+            SEO e Experiência do Usuário:
+            Use palavras-chave de forma natural ao longo do texto.
+
+            Escreva uma meta descrição atrativa para aumentar o CTR.
+
+            Mantenha o código e o conteúdo otimizados para carregamento rápido.
+
+            Engajamento e Atualização:
+            Inclua links internos fictícios apontando para artigos relacionados (ex: <a href="/artigo-relacionado">Leia também</a>).
+
+            Encerre o artigo com um convite à interação: perguntas, comentários ou compartilhamentos.
+
+            Garanta que o conteúdo tenha relevância duradoura e possa ser atualizado no futuro.
+
+            Não Fazer:
+            Não escreva conteúdo superficial ou genérico.
+
+            Não use frases prontas que não entreguem valor real.
+
+            Não gere um artigo curto ou puramente descritivo sem profundidade.
+
+            Texto base:
             \"\"\"{texto_base}\"\"\"
             """
 
             print(f"📄 Gerando artigo para: {nome_arquivo}")
             response = model.generate_content(prompt)
+            time.sleep(30)
             html_com_tags = response.text
 
             # Busca por comentários de imagens
@@ -104,7 +133,10 @@ def gerar_artigos():
             html_final = html_com_tags
 
             for i, descricao in enumerate(imagens):
-                img_path = gerar_imagem_gratis_unsplash(descricao, i, nome_base)
+                query_visual = gerar_query_visual(descricao, texto_base)
+                time.sleep(30)
+                img_path = gerar_imagem_gratis_unsplash(query_visual, i, nome_base)
+                time.sleep(2)
                 if img_path:
                     img_tag = f'<img src="{os.path.basename(img_path)}" alt="{descricao}" style="max-width:100%; border-radius:10px; margin: 20px 0;">'
                     html_final = html_final.replace(f"<!-- imagem: {descricao} -->", img_tag, 1)
@@ -115,3 +147,4 @@ def gerar_artigos():
                 f.write(html_final)
 
             print(f"✅ Artigo gerado: {caminho_html}")
+            time.sleep(4)
