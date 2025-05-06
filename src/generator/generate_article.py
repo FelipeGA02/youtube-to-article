@@ -3,30 +3,75 @@ import re
 import google.generativeai as genai
 from dotenv import load_dotenv
 import time
+import requests
+import urllib.parse
+from bs4 import BeautifulSoup
+from PIL import Image
+from io import BytesIO
 
-from generator.image_generator import buscar_imagens_licenca_livre, gerar_imagem_por_ia_huggingface, mesclar_imagens
-
-load_dotenv()
-
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-pro")
-
-os.makedirs("artigos", exist_ok=True)
-
-def gerar_query_visual(descricao, contexto):
-    prompt_query = f"""
-    Você é um especialista em busca de imagens para ilustrar artigos. Com base na descrição abaixo, no contexto geral do artigo e na categoria, gere uma *query* concisa, específica e visualmente expressiva para ser usada na API do Unsplash.
-
-    Descrição: "{descricao}"
-    Contexto do artigo: "{contexto}"
-    Categoria: "(filmes-e-series | jogos | curiosidades | musica | saude | tecnologia)"
+def baixa_imagens_licenca_livre(termo_pesquisa, nome_base, index):
     """
-    response = model.generate_content(prompt_query)
-    time.sleep(30)
-    return response.text.strip().replace('"', '')
+    Busca e salva uma imagem com licença livre do Google Imagens.
 
+    Parâmetros:
+    - termo_pesquisa (str): termo a ser pesquisado.
+    - pasta_destino (str): pasta onde a imagem será salva.
+
+    Retorna:
+    - Caminho do arquivo salvo ou None.
+    """
+
+    num_imagens = 1
+    termo_codificado = urllib.parse.quote(termo_pesquisa)
+    url = f"https://www.google.com/search?q={termo_codificado}&tbm=isch&tbs=il:cl"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+
+    resposta = requests.get(url, headers=headers)
+    if resposta.status_code != 200:
+        print("Erro ao realizar a requisição.")
+        return None
+
+    soup = BeautifulSoup(resposta.text, 'html.parser')
+    tags_imagem = soup.find_all("img")
+
+    urls_imagens = []
+    for tag in tags_imagem:
+        src = tag.get("src")
+        if src and src.startswith("http"):
+            urls_imagens.append(src)
+        if len(urls_imagens) >= num_imagens:
+            break
+
+    if not urls_imagens:
+        print("Nenhuma imagem encontrada.")
+        return None
+
+    os.makedirs("artigos", exist_ok=True)
+
+    try:
+        url_imagem = urls_imagens[0]
+        resposta_img = requests.get(url_imagem)
+        imagem = Image.open(BytesIO(resposta_img.content))
+
+        img_path = f"artigos/{nome_base}_imagem_{index}.jpg"
+        imagem.save(img_path)
+        return img_path
+    except Exception as e:
+        print(f"Erro ao baixar ou salvar a imagem: {e}")
+        return None
+    
 def gerar_artigos():
+    load_dotenv()
+
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-1.5-pro")
+    
+    os.makedirs("artigos", exist_ok=True)
+    
     for nome_arquivo in os.listdir("transcricoes"):
         if nome_arquivo.endswith(".txt"):
             caminho_txt = os.path.join("transcricoes", nome_arquivo)
@@ -104,6 +149,7 @@ def gerar_artigos():
 
             print(f"📄 Gerando artigo para: {nome_arquivo}")
             response = model.generate_content(prompt)
+            time.sleep(40)
             html_com_tags = response.text
 
             # Busca por comentários de imagens
@@ -111,15 +157,10 @@ def gerar_artigos():
             html_final = html_com_tags
 
             for i, descricao in enumerate(imagens):
-                query_visual = gerar_query_visual(descricao, texto_base)
-                path_ia = gerar_imagem_por_ia_huggingface(query_visual, f"{nome_base}_{i}")
+                img_path = baixa_imagens_licenca_livre(descricao, nome_base, i)
                 time.sleep(10)
-                imagens_livres = buscar_imagens_licenca_livre(descricao)
-                time.sleep(10)
-                img_path = mesclar_imagens(path_ia, imagens_livres)
-                time.sleep(2)
                 if img_path:
-                    img_tag = f'<img src="{os.path.basename(img_path)}" alt="{descricao}" style="max-width:100%; border-radius:10px; margin: 20px 0;">'
+                    img_tag = f'<img src="{os.path.basename(img_path[0])}" alt="{descricao}" style="max-width:100%; border-radius:10px; margin: 20px 0;">'
                     html_final = html_final.replace(f"<!-- imagem: {descricao} -->", img_tag, 1)
 
             # Salva HTML final

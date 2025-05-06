@@ -1,6 +1,4 @@
-import os
 import requests
-from pytube import YouTube
 from urllib.parse import urlparse, parse_qs
 
 def search_youtube_video_links(api_key, cx_id, query, max_results):
@@ -38,4 +36,3 @@ def normalize_youtube_link(link):
         return f"https://www.youtube.com/watch?v={video_id}"
     
     return None
-

@@ -1,6 +1,7 @@
 import yt_dlp
 
-def download_youtube_videos(links, output_path="videos"):
+def download_youtube_videos(links):
+    output_path="videos"
     ydl_opts = {
         'format': 'best[ext=mp4]/best',
         'outtmpl': f'{output_path}/%(title)s.%(ext)s',

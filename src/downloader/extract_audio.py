@@ -1,7 +1,8 @@
 from moviepy import VideoFileClip
 import os
 
-def extract_audio_from_video(video_path, output_dir="audios"):
+def extract_audio_from_video(video_path):
+    output_dir="audios"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
