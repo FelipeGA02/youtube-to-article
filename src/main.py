@@ -32,5 +32,5 @@ if __name__ == "__main__":
     #        extract_audio_from_video(video_path)
     
     #transcribe_all_audios()
-    #generate_article.gerar_artigos()
-    publish_all_articles()
+    generate_article.gerar_artigos()
+    #publish_all_articles()

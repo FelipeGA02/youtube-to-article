@@ -1,51 +1,30 @@
 import os
 import re
-import requests
 import google.generativeai as genai
 from dotenv import load_dotenv
 import time
 
-UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
+from generator.image_generator import buscar_imagens_licenca_livre, gerar_imagem_por_ia_huggingface, mesclar_imagens
 
 load_dotenv()
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
 genai.configure(api_key=GEMINI_API_KEY)
-
 model = genai.GenerativeModel("gemini-1.5-pro")
 
 os.makedirs("artigos", exist_ok=True)
- 
+
 def gerar_query_visual(descricao, contexto):
     prompt_query = f"""
-    Você é um especialista em busca de imagens para ilustrar artigos. Com base na descrição abaixo e no contexto geral do artigo, gere uma *query* em inglês, concisa e visualmente expressiva para ser usada na API do Unsplash.
+    Você é um especialista em busca de imagens para ilustrar artigos. Com base na descrição abaixo, no contexto geral do artigo e na categoria, gere uma *query* concisa, específica e visualmente expressiva para ser usada na API do Unsplash.
 
     Descrição: "{descricao}"
-    Contexto do artigo: \"\"\"{contexto}\"\"\"
-
-    A query deve ser específica e representar bem a imagem sugerida.
+    Contexto do artigo: "{contexto}"
+    Categoria: "(filmes-e-series | jogos | curiosidades | musica | saude | tecnologia)"
     """
     response = model.generate_content(prompt_query)
+    time.sleep(30)
     return response.text.strip().replace('"', '')
-
-
-def gerar_imagem_gratis_unsplash(query, index, nome_base):
-    url = f"https://api.unsplash.com/photos/random?query={query}&client_id={UNSPLASH_ACCESS_KEY}"
-    response = requests.get(url).json()
-
-    # Em caso de erro
-    if "urls" not in response:
-        print(f"⚠️ Erro ao buscar imagem: {response}")
-        return ""
-
-    image_url = response["urls"]["regular"]
-    time.sleep(2)
-    img_path = f"artigos/{nome_base}_imagem_{index}.jpg"
-    img_data = requests.get(image_url).content
-    with open(img_path, "wb") as handler:
-        handler.write(img_data)
-
-    return img_path
 
 def gerar_artigos():
     for nome_arquivo in os.listdir("transcricoes"):
@@ -85,7 +64,7 @@ def gerar_artigos():
 
             Adicione comentários HTML descrevendo as imagens ideais para cada seção, no formato:
 
-            <!-- imagem: descrição da imagem -->
+            <!-- imagem: descrição da imagem + categoria(filmes-e-series | jogos | curiosidades | musica | saude | tecnologia) -->
             Conteúdo:
             Escreva análises detalhadas sobre os itens ou temas discutidos.
 
@@ -125,7 +104,6 @@ def gerar_artigos():
 
             print(f"📄 Gerando artigo para: {nome_arquivo}")
             response = model.generate_content(prompt)
-            time.sleep(30)
             html_com_tags = response.text
 
             # Busca por comentários de imagens
@@ -134,8 +112,11 @@ def gerar_artigos():
 
             for i, descricao in enumerate(imagens):
                 query_visual = gerar_query_visual(descricao, texto_base)
-                time.sleep(30)
-                img_path = gerar_imagem_gratis_unsplash(query_visual, i, nome_base)
+                path_ia = gerar_imagem_por_ia_huggingface(query_visual, f"{nome_base}_{i}")
+                time.sleep(10)
+                imagens_livres = buscar_imagens_licenca_livre(descricao)
+                time.sleep(10)
+                img_path = mesclar_imagens(path_ia, imagens_livres)
                 time.sleep(2)
                 if img_path:
                     img_tag = f'<img src="{os.path.basename(img_path)}" alt="{descricao}" style="max-width:100%; border-radius:10px; margin: 20px 0;">'
